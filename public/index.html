@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FixForge</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      background: #eef0f4;
+      color: #1f2328;
+      min-height: 100vh;
+      padding: 2.5rem 1rem 4rem;
+    }
+
+    /* ── Keyframes ── */
+    @keyframes spin       { to { transform: rotate(360deg); } }
+    @keyframes dot-pulse  { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
+                            40%          { transform: scale(1);   opacity: 1;   } }
+    @keyframes fade-up    { from { opacity: 0; transform: translateY(10px); }
+                            to   { opacity: 1; transform: translateY(0);    } }
+    @keyframes badge-pop  { 0%   { transform: scale(0.5);  opacity: 0; }
+                            60%  { transform: scale(1.18); opacity: 1; }
+                            100% { transform: scale(1);                 } }
+    @keyframes mem-flash  { 0%,100% { background: transparent; }
+                            40%      { background: #d1fae5;     } }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 2.25rem; }
+    header h1 {
+      font-size: 2.1rem; font-weight: 800; letter-spacing: -0.6px;
+      background: linear-gradient(90deg, #2563ba, #3b82d4 60%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header p { margin-top: 0.45rem; color: #57606a; font-size: 0.92rem; line-height: 1.5; }
+
+    .container { max-width: 920px; margin: 0 auto; }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex; align-items: center; justify-content: center;
+      gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      position: relative; border: none; border-radius: 8px;
+      padding: 0.7rem 2rem; font-size: 0.95rem; font-weight: 700;
+      cursor: pointer; letter-spacing: 0.01em;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active:not(:disabled) { transform: scale(0.97); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82d4, #2563ba);
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(59,130,212,0.30);
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: scale(1.03);
+      box-shadow: 0 6px 18px rgba(59,130,212,0.40);
+    }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* Button loading state: pulsing dots replace text */
+    .btn-primary.loading { pointer-events: none; }
+    .btn-primary.loading .btn-text { visibility: hidden; }
+    .btn-dots {
+      display: none;
+      position: absolute; inset: 0;
+      align-items: center; justify-content: center; gap: 5px;
+    }
+    .btn-primary.loading .btn-dots { display: flex; }
+    .btn-dots span {
+      width: 7px; height: 7px; border-radius: 50%; background: #fff;
+      animation: dot-pulse 1.2s ease-in-out infinite;
+    }
+    .btn-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .btn-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    .btn-sm {
+      padding: 0.38rem 0.95rem; font-size: 0.82rem; font-weight: 600;
+      border-radius: 6px; border: none; cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .btn-sm:hover  { transform: scale(1.04); }
+    .btn-sm:active { transform: scale(0.97); }
+
+    .btn-copy {
+      background: #e5e7eb; color: #1f2328;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+    .btn-copy:hover { background: #d1d5db; box-shadow: 0 3px 8px rgba(0,0,0,0.10); }
+
+    .btn-rollback {
+      background: #fee2e2; color: #b91c1c;
+      box-shadow: 0 1px 3px rgba(185,28,28,0.10);
+    }
+    .btn-rollback:hover { background: #fecaca; box-shadow: 0 3px 8px rgba(185,28,28,0.18); }
+
+    /* ── Spinner (standalone, hidden when button takes over) ── */
+    #spinner {
+      display: none; margin: 0 auto 1.5rem;
+      width: 34px; height: 34px;
+      border: 3px solid #dde1e7; border-top-color: #3b82d4;
+      border-radius: 50%; animation: spin 0.65s linear infinite;
+    }
+
+    /* ── Timing banner ── */
+    #timingBanner {
+      display: none;
+      background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+      padding: 0.8rem 1.2rem; margin-bottom: 1.75rem;
+      font-size: 0.87rem; color: #1d4ed8; text-align: center;
+      font-weight: 500;
+      animation: fade-up 0.3s ease both;
+    }
+
+    /* ── Error ── */
+    #errorBox {
+      display: none;
+      background: #fff1f1; border: 1px solid #fca5a5; border-radius: 10px;
+      padding: 1rem 1.2rem; color: #b91c1c; font-size: 0.9rem;
+      margin-bottom: 1.5rem; white-space: pre-wrap;
+      animation: fade-up 0.25s ease both;
+    }
+
+    /* ── Bug cards container ── */
+    #bugsContainer { display: flex; flex-direction: column; gap: 2rem; }
+
+    /* ── Bug card ── */
+    .bug-card {
+      background: #fff;
+      border: 1px solid #e2e5eb;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      /* starts hidden; JS adds .bug-card--visible to trigger fade-up */
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    .bug-card--visible {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    .bug-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+    }
+    /* Don't fight the hover transform while card is still animating in */
+    .bug-card:not(.bug-card--visible):hover { transform: translateY(10px); }
+
+    .bug-card-header {
+      background: #1c2128; color: #fff;
+      padding: 1rem 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 0.5rem;
+    }
+    .bug-card-header .bug-title { font-weight: 700; font-size: 1rem; letter-spacing: 0.01em; }
+    .bug-card-header .bug-file  {
+      font-size: 0.78rem; color: #8b949e;
+      font-family: "SFMono-Regular", Consolas, monospace; margin-top: 0.15rem;
+    }
+    .bug-card-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    .bug-card-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+
+    /* ── Memory match notice ── */
+    .memory-notice {
+      background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;
+      padding: 0.6rem 1rem; font-size: 0.84rem; color: #15803d;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+
+    /* ── Stage blocks ── */
+    .stage {
+      border: 1px solid #e2e5eb; border-radius: 10px; overflow: hidden;
+      transition: box-shadow 0.2s ease;
+    }
+    .stage:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.07); }
+    .stage-header {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.65rem 1rem; background: #f7f8fa;
+      border-bottom: 1px solid #e2e5eb;
+    }
+    .stage-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: linear-gradient(135deg, #3b82d4, #2563ba);
+      color: #fff; font-size: 0.7rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      box-shadow: 0 1px 4px rgba(59,130,212,0.35);
+    }
+    .stage-label { font-weight: 600; font-size: 0.9rem; flex: 1; color: #1f2328; }
+    .stage-body { padding: 1rem; }
+
+    /* Stage reveal animation — added via JS */
+    .stage--hidden { opacity: 0; transform: translateY(10px); }
+    .stage--visible {
+      animation: fade-up 0.3s ease both;
+    }
+
+    /* ── Confidence badge ── */
+    .conf-badge {
+      padding: 0.22rem 0.7rem; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 700;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .conf-badge:hover { transform: scale(1.06); }
+    .conf-high   { background: #dcfce7; color: #15803d; box-shadow: 0 0 0 1px #86efac; }
+    .conf-medium { background: #fef9c3; color: #92400e; box-shadow: 0 0 0 1px #fde68a; }
+    .conf-low    { background: #fee2e2; color: #b91c1c; box-shadow: 0 0 0 1px #fca5a5; }
+
+    /* ── KV grid ── */
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.28rem 0.8rem; font-size: 0.87rem; }
+    .kv .k { font-weight: 600; color: #57606a; white-space: nowrap; padding-top: 0.1rem; }
+    .kv .v code {
+      background: #f0f2f5; padding: 0.12rem 0.38rem;
+      border-radius: 4px; font-size: 0.81rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      border: 1px solid #e2e5eb;
+    }
+
+    /* ── Diff ── */
+    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 600px) { .diff-grid { grid-template-columns: 1fr; } }
+    .diff-pane label {
+      display: block; font-size: 0.71rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem;
+    }
+    .diff-pane.before label { color: #dc2626; }
+    .diff-pane.after  label { color: #16a34a; }
+    .diff-pane pre {
+      background: #f7f8fa; border: 1px solid #e2e5eb; border-radius: 7px;
+      padding: 0.65rem 0.85rem; white-space: pre-wrap; word-break: break-all;
+      font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.8rem; line-height: 1.6;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .diff-pane.before pre { border-left: 3px solid #ef4444; }
+    .diff-pane.after  pre { border-left: 3px solid #22c55e; }
+    .diff-pane.before pre:hover { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.10); }
+    .diff-pane.after  pre:hover { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.10);  }
+    .fix-desc { margin-top: 0.7rem; font-size: 0.84rem; color: #57606a; font-style: italic; line-height: 1.5; }
+
+    /* ── Pass/fail verdict badge ── */
+    .verdict {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.32rem 0.9rem; border-radius: 999px;
+      font-weight: 700; font-size: 0.87rem; margin-bottom: 0.7rem;
+      /* pop animation triggered by .verdict--visible */
+    }
+    .verdict--visible { animation: badge-pop 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
+    .verdict.pass { background: #dcfce7; color: #15803d; box-shadow: 0 0 0 1px #86efac; }
+    .verdict.fail { background: #fee2e2; color: #b91c1c; box-shadow: 0 0 0 1px #fca5a5; }
+    .verdict .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .verdict.pass .dot { background: #22c55e; }
+    .verdict.fail .dot { background: #ef4444; }
+
+    .test-output {
+      background: #161b22; color: #cdd6f4; border-radius: 8px;
+      padding: 0.8rem 1rem; font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.76rem; max-height: 200px; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-all; line-height: 1.55;
+      border: 1px solid #30363d;
+    }
+    .test-output::-webkit-scrollbar       { width: 5px; }
+    .test-output::-webkit-scrollbar-track { background: #1e1e2e; }
+    .test-output::-webkit-scrollbar-thumb { background: #3b4252; border-radius: 3px; }
+
+    /* ── Blast radius ── */
+    .blast-list { list-style: none; font-size: 0.84rem; display: flex; flex-direction: column; gap: 0.25rem; }
+    .blast-list li {
+      padding: 0.25rem 0.5rem; border-radius: 5px;
+      transition: background 0.15s ease;
+    }
+    .blast-list li:hover { background: #f0f2f5; }
+    .blast-list li code {
+      background: #f0f2f5; padding: 0.1rem 0.32rem; border-radius: 4px;
+      font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.79rem;
+      border: 1px solid #e2e5eb;
+    }
+
+    /* ── Time saved ── */
+    .time-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      font-size: 0.9rem; color: #1d4ed8; font-weight: 500;
+    }
+    .time-row strong { font-size: 0.97rem; font-weight: 700; }
+
+    /* ── Pattern memory panel ── */
+    #memoryPanel {
+      background: #fff;
+      border: 1px solid #e2e5eb; border-radius: 12px;
+      margin-top: 2.25rem; overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    #memoryPanel:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.09);
+    }
+    #memoryPanel .panel-header {
+      background: #f7f8fa; border-bottom: 1px solid #e2e5eb;
+      padding: 0.85rem 1.2rem; font-weight: 700; font-size: 0.95rem;
+    }
+    #memoryPanel .panel-body { padding: 1rem 1.2rem; }
+
+    .memory-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    .memory-table th, .memory-table td {
+      padding: 0.5rem 0.65rem; border-bottom: 1px solid #e2e5eb; text-align: left;
+    }
+    .memory-table th { font-weight: 600; color: #57606a; background: #f7f8fa; font-size: 0.8rem; }
+    .memory-table tr:last-child td { border-bottom: none; }
+    .memory-table tbody tr {
+      transition: background 0.15s ease;
+    }
+    .memory-table tbody tr:hover { background: #f7f8fa; }
+    /* Flash animation on newly added rows */
+    .memory-row--new { animation: mem-flash 0.8s ease both; }
+
+    .memory-empty { color: #57606a; font-size: 0.88rem; font-style: italic; }
+
+    /* ── Section title (unused but kept) ── */
+    .section-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: #57606a; margin-bottom: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Fix<span>Forge</span></h1>
+    <p>Automated multi-bug locate → fix → test → verify pipeline with rollback and pattern memory</p>
+  </header>
+
+  <div class="container">
+    <div class="controls">
+      <button id="runBtn" class="btn btn-primary">
+        <span class="btn-text">▶ Run Pipeline</span>
+        <span class="btn-dots" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </span>
+      </button>
+    </div>
+
+    <div id="spinner"></div>
+    <div id="errorBox"></div>
+    <div id="timingBanner"></div>
+
+    <div id="bugsContainer"></div>
+
+    <!-- Pattern Memory Panel -->
+    <div id="memoryPanel" style="display:none">
+      <div class="panel-header">📚 Pattern Memory</div>
+      <div class="panel-body">
+        <div id="memoryContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ── Helpers ── */
+    function esc(s) {
+      return String(s ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function confClass(label) {
+      return label === 'High' ? 'conf-high' : label === 'Medium' ? 'conf-medium' : 'conf-low';
+    }
+
+    // Store raw incident markdown outside the DOM to avoid HTML-attribute
+    // encoding issues (esc() would double-encode < > & when read back via dataset).
+    const _incidentMarkdowns = new Map();
+
+    /* ── Confidence count-up ── */
+    function animateConfidence(badgeEl, targetScore) {
+      const duration = 800;
+      const start = performance.now();
+      const label = badgeEl.dataset.confLabel || '';
+      function tick(now) {
+        const t = Math.min((now - start) / duration, 1);
+        // ease-out cubic
+        const eased = 1 - Math.pow(1 - t, 3);
+        const current = Math.round(eased * targetScore);
+        badgeEl.textContent = `${current}% confidence (${label})`;
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    /* ── Memory panel ── */
+    let _prevPatternCount = 0;
+
+    async function loadMemory() {
+      try {
+        const r = await fetch('/api/memory');
+        if (!r.ok) return; // server error — silently skip, don't attempt to parse non-JSON body
+        const { patterns } = await r.json();
+        renderMemory(patterns);
+      } catch { /* silent — network error or JSON parse failure */ }
+    }
+
+    function renderMemory(patterns) {
+      const panel = document.getElementById('memoryPanel');
+      const content = document.getElementById('memoryContent');
+      if (!patterns || patterns.length === 0) {
+        content.innerHTML = '<p class="memory-empty">No patterns learned yet — run the pipeline to start building memory.</p>';
+      } else {
+        const newCount = patterns.length;
+        content.innerHTML = `
+          <table class="memory-table">
+            <thead><tr><th>Bug Type</th><th>Fix Pattern</th><th>Times Fixed</th><th>Last Seen</th></tr></thead>
+            <tbody>
+              ${patterns.map((p, i) => `
+                <tr class="${i >= _prevPatternCount ? 'memory-row--new' : ''}">
+                  <td>${esc(p.bugType)}</td>
+                  <td>${esc(p.fixPattern)}</td>
+                  <td>${esc(p.timesFixed)}</td>
+                  <td>${esc(new Date(p.lastSeen).toLocaleString())}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+        _prevPatternCount = newCount;
+      }
+      panel.style.display = 'block';
+    }
+
+    /* ── Render one bug result card ── */
+    function renderBugCard(result, idx) {
+      const { locate, fix, blast, verify, confidence, incident, memoryMatch, backupPath, reportFile } = result;
+
+      const confLabel  = confidence?.label  ?? 'Unknown';
+      const confScore  = confidence?.score  ?? 0;
+      const passed     = verify?.passed ?? false;
+      const blastSites = blast?.callSites ?? [];
+      const timeSaved  = verify?.timeSavedEstimate ?? 'N/A';
+
+      // Store raw markdown in a side-channel map keyed by card index.
+      // Storing in data-markdown attribute would HTML-encode the content via esc(),
+      // causing double-encoding (&amp;lt; etc.) when read back via dataset.
+      const cardKey = `card-${idx}`;
+      _incidentMarkdowns.set(cardKey, incident?.markdown ?? '');
+
+      const card = document.createElement('div');
+      card.className = 'bug-card';
+      card.dataset.file = esc(locate?.file ?? '');
+      card.dataset.cardKey = cardKey;
+
+      // Stages start hidden; we'll reveal them sequentially after the card appears
+      card.innerHTML = `
+        <div class="bug-card-header">
+          <div>
+            <div class="bug-title">Bug ${idx + 1} — ${esc(reportFile ?? '')}</div>
+            <div class="bug-file">${esc(locate?.file ?? 'unknown')}:${esc(locate?.line ?? '')}</div>
+          </div>
+          <div class="bug-card-actions">
+            <button class="btn btn-sm btn-copy">Copy Incident Report</button>
+            ${backupPath ? `<button class="btn btn-sm btn-rollback" data-file="${esc(locate?.file ?? '')}">Rollback This Fix</button>` : ''}
+          </div>
+        </div>
+        <div class="bug-card-body">
+
+          ${memoryMatch ? `
+            <div class="memory-notice">
+              ⚡ This matches a bug type fixed <strong>${memoryMatch.timesFixed}</strong> time${memoryMatch.timesFixed === 1 ? '' : 's'} before — pattern: <em>${esc(memoryMatch.bugType)}</em>
+            </div>` : ''}
+
+          <!-- Stage 1: Root Cause -->
+          <div class="stage stage--hidden">
+            <div class="stage-header">
+              <div class="stage-num">1</div>
+              <span class="stage-label">Root Cause</span>
+            </div>
+            <div class="stage-body">
+              <div class="kv">
+                <span class="k">File</span>   <span class="v"><code>${esc(locate?.file)}</code></span>
+                <span class="k">Line</span>   <span class="v"><code>${esc(locate?.line)}</code></span>
+                <span class="k">Code</span>   <span class="v"><code>${esc(locate?.lineText)}</code></span>
+                <span class="k">Analysis</span><span class="v">${esc(locate?.reasoning)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stage 2: Fix -->
+          <div class="stage stage--hidden">
+            <div class="stage-header">
+              <div class="stage-num">2</div>
+              <span class="stage-label">Fix — Before / After</span>
+              <span class="conf-badge ${confClass(confLabel)}"
+                    data-conf-score="${confScore}"
+                    data-conf-label="${esc(confLabel)}">0% confidence (${esc(confLabel)})</span>
+            </div>
+            <div class="stage-body">
+              <div class="diff-grid">
+                <div class="diff-pane before"><label>Before (buggy)</label><pre>${esc(fix?.buggyLine ?? '')}</pre></div>
+                <div class="diff-pane after"><label>After (fixed)</label><pre>${esc(fix?.fixedLine ?? '')}</pre></div>
+              </div>
+              <p class="fix-desc">${esc(fix?.description ?? '')}</p>
+            </div>
+          </div>
+
+          <!-- Stage 3: Test Result -->
+          <div class="stage stage--hidden">
+            <div class="stage-header">
+              <div class="stage-num">3</div>
+              <span class="stage-label">Test Result</span>
+            </div>
+            <div class="stage-body">
+              <div class="verdict ${passed ? 'pass' : 'fail'}">
+                <span class="dot"></span>${passed ? 'PASSED' : 'FAILED'}
+              </div>
+              <div class="test-output">${esc(verify?.testOutput ?? '(no output)')}</div>
+            </div>
+          </div>
+
+          <!-- Stage 4: Blast Radius -->
+          <div class="stage stage--hidden">
+            <div class="stage-header">
+              <div class="stage-num">4</div>
+              <span class="stage-label">Blast Radius</span>
+            </div>
+            <div class="stage-body">
+              <p style="font-size:0.88rem;margin-bottom:0.5rem">${esc(blast?.summary ?? '')}</p>
+              ${blastSites.length > 0 ? `
+                <ul class="blast-list">
+                  ${blastSites.map(cs => `<li><code>${esc(cs.file)}:${esc(cs.line)}</code> — <code>${esc(cs.lineText)}</code></li>`).join('')}
+                </ul>` : ''}
+            </div>
+          </div>
+
+          <!-- Stage 5: Time Saved -->
+          <div class="stage stage--hidden">
+            <div class="stage-header">
+              <div class="stage-num">5</div>
+              <span class="stage-label">Time Saved</span>
+            </div>
+            <div class="stage-body">
+              <div class="time-row">
+                <span>&#9201;</span><strong>${esc(timeSaved)}</strong>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /.bug-card-body -->
+      `;
+
+      /* ── Sequential stage reveal ── */
+      function revealStages(cardEl, cardDelay) {
+        const stages = cardEl.querySelectorAll('.stage--hidden');
+        stages.forEach((stage, i) => {
+          const delay = cardDelay + i * 80; // 80ms between each stage
+          setTimeout(() => {
+            stage.classList.remove('stage--hidden');
+            stage.classList.add('stage--visible');
+
+            // Confidence badge count-up (stage 2, index 1)
+            if (i === 1) {
+              const badge = stage.querySelector('.conf-badge');
+              if (badge) animateConfidence(badge, parseInt(badge.dataset.confScore, 10) || 0);
+            }
+
+            // Verdict badge pop + dot (stage 3, index 2)
+            if (i === 2) {
+              const verdict = stage.querySelector('.verdict');
+              if (verdict) {
+                requestAnimationFrame(() => verdict.classList.add('verdict--visible'));
+              }
+            }
+          }, delay);
+        });
+      }
+
+      /* Copy incident report — read from Map to avoid HTML-entity double-encoding */
+      card.querySelector('.btn-copy')?.addEventListener('click', e => {
+        const key = card.dataset.cardKey;
+        const md = _incidentMarkdowns.get(key) || '(no report)';
+        navigator.clipboard.writeText(md).then(() => {
+          e.currentTarget.textContent = '✓ Copied!';
+          setTimeout(() => { e.currentTarget.textContent = 'Copy Incident Report'; }, 2000);
+        }).catch(() => {
+          alert('Clipboard unavailable — report is in the incident-reports/ folder.');
+        });
+      });
+
+      /* Rollback */
+      const rollBtn = card.querySelector('.btn-rollback');
+      if (rollBtn) {
+        rollBtn.addEventListener('click', async e => {
+          const file = e.currentTarget.dataset.file;
+          rollBtn.disabled = true;
+          rollBtn.textContent = 'Rolling back…';
+          try {
+            const r = await fetch('/api/rollback', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ file }),
+            });
+            const data = await r.json();
+            rollBtn.textContent = data.restored ? '✓ Restored' : '✗ Failed';
+            rollBtn.style.background = data.restored ? '#dcfce7' : '#fee2e2';
+            rollBtn.style.color      = data.restored ? '#15803d' : '#b91c1c';
+          } catch (err) {
+            rollBtn.textContent = '✗ Error';
+          }
+        });
+      }
+
+      /* Attach reveal — called by the main runner after appending to DOM */
+      card._revealStages = revealStages.bind(null, card);
+
+      return card;
+    }
+
+    /* ── Main runner ── */
+    document.getElementById('runBtn').addEventListener('click', async () => {
+      const runBtn        = document.getElementById('runBtn');
+      const spinner       = document.getElementById('spinner');
+      const errorBox      = document.getElementById('errorBox');
+      const timingBanner  = document.getElementById('timingBanner');
+      const bugsContainer = document.getElementById('bugsContainer');
+
+      // Loading state: show pulsing dots inside button
+      runBtn.classList.add('loading');
+      runBtn.disabled = true;
+      spinner.style.display = 'none'; // button handles loading indicator
+      errorBox.style.display = 'none';
+      timingBanner.style.display = 'none';
+      bugsContainer.innerHTML = '';
+      // Clear stale markdown entries from previous run
+      _incidentMarkdowns.clear();
+
+      try {
+        const resp = await fetch('/api/pipeline', { method: 'POST' });
+        if (!resp.ok) throw new Error(`Server ${resp.status}: ${await resp.text()}`);
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        /* Timing banner */
+        timingBanner.textContent = data.parallelismSummary ?? '';
+        timingBanner.style.display = 'block';
+
+        /* Render each bug card with staggered reveal */
+        (data.results || []).forEach((result, i) => {
+          const card = renderBugCard(result, i);
+          bugsContainer.appendChild(card);
+
+          // Stagger cards: each card fades in 120ms after the previous
+          const cardDelay = i * 120;
+          setTimeout(() => {
+            card.classList.add('bug-card--visible');
+            // Reveal stages starting 200ms after the card itself appears
+            card._revealStages(200);
+          }, cardDelay);
+        });
+
+        /* Refresh memory panel */
+        loadMemory();
+
+      } catch (err) {
+        errorBox.textContent = 'Pipeline error: ' + err.message;
+        errorBox.style.display = 'block';
+      } finally {
+        runBtn.classList.remove('loading');
+        runBtn.disabled = false;
+      }
+    });
+
+    /* Load memory on page open */
+    loadMemory();
+  </script>
+</body>
+</html>

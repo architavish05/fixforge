@@ -1,0 +1,17 @@
+{
+  "name": "fixforge",
+  "version": "1.0.0",
+  "description": "FixForge – automated bug-locate, fix, test, and verify pipeline",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
