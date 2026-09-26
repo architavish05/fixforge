@@ -55,4 +55,5 @@ See `/bob_sessions` for screenshots of Bob IDE task session summaries used throu
 ## Team
 
 Archita Vishwakarma
+and
 Aditya Tripathi
